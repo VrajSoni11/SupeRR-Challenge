@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pressure Players – Player Explorer</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#14181f;--mut:#667085;--line:#e3e6eb;--acc:#1f4fd8;--accbg:#e8eefc;--hd:#eef1f6;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1218;--card:#171b23;--tx:#e8ebf0;--mut:#98a2b3;--line:#2a303b;--acc:#7da2ff;--accbg:#1d2a4d;--hd:#1d222c;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f1218;--card:#171b23;--tx:#e8ebf0;--mut:#98a2b3;--line:#2a303b;--acc:#7da2ff;--accbg:#1d2a4d;--hd:#1d222c;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1400px;margin:0 auto;padding:16px}
+h1{font-size:20px;margin:0 0 2px}.sub{color:var(--mut);font-size:13px;margin:0 0 12px}
+details{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-bottom:12px;font-size:13px}summary{cursor:pointer;font-weight:600}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.seg button,.chips button{border:1px solid var(--line);background:var(--card);color:var(--tx);padding:7px 12px;cursor:pointer;font:inherit}
+.seg button{border-radius:0}.seg button:first-child{border-radius:8px 0 0 8px}.seg button:last-child{border-radius:0 8px 8px 0}
+.chips button{border-radius:999px;margin-right:4px}
+button.on{background:var(--accbg);color:var(--acc);border-color:var(--acc);font-weight:600}
+select,input{border:1px solid var(--line);background:var(--card);color:var(--tx);padding:7px 9px;border-radius:8px;font:inherit}input[type=number]{width:84px}input[type=search]{min-width:170px}
+label{font-size:12px;color:var(--mut)}.cnt{color:var(--mut);font-size:13px;margin:4px 0 8px}
+.tw{overflow:auto;max-height:72vh;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+table{border-collapse:separate;border-spacing:0;width:100%;white-space:nowrap}
+th,td{padding:7px 10px;text-align:right;border-bottom:1px solid var(--line)}th{position:sticky;top:0;background:var(--hd);cursor:pointer;font-size:12px;z-index:2;user-select:none}
+th.g{text-align:center;cursor:default;color:var(--mut);top:0}th.l,td.l{text-align:left}
+td.n,th.n{position:sticky;left:0;background:var(--card);z-index:1;font-weight:600;text-align:left}th.n{background:var(--hd);z-index:3}
+tbody tr{cursor:pointer}tbody tr:hover td{background:var(--accbg)}td.sm{color:var(--mut)}
+.dlg{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-start;justify-content:center;padding:max(16px,env(safe-area-inset-top,0px)) 12px 16px;overflow:auto;z-index:9}
+.dlg.show{display:flex}.box{background:var(--card);border:1px solid var(--line);border-radius:12px;max-width:760px;width:100%;padding:16px}
+.box h2{margin:0 0 2px;font-size:18px}.box h3{font-size:13px;margin:14px 0 6px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
+.box table td,.box table th{cursor:default;position:static}.x{float:right;border:0;background:none;color:var(--tx);font-size:22px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Pressure Players – Player Explorer</h1>
+<p class="sub" id="sub"></p>
+<details><summary>What counts as “pressure”?</summary>
+<p style="margin:8px 0 0">Pressure balls are the 20% most match-deciding balls: tight chases (the required rate against balls and wickets left) and collapses or runaway starts in the first innings. Super overs always count. All figures come from completed IPL and T20I matches from 2022. SR = strike rate (batters) or balls per wicket (bowlers). Rank orders players by our pressure model within the current filters; “–” means too little pressure data.</p></details>
+<div class="bar"><div class="seg" id="role"><button data-r="bat" class="on">Batters</button><button data-r="bowl">Bowlers</button></div>
+<div class="chips" id="cats"></div></div>
+<div class="bar"><label>Nation <select id="nat"></select></label>
+<label>Players <select id="pool"><option value="av">Available (no IPL team)</option><option value="all">All active players</option></select></label>
+<label>Min pressure balls <input id="minp" type="number" min="0" value="0"></label>
+<input id="q" type="search" placeholder="Search player"></div>
+<div class="cnt" id="cnt"></div>
+<div class="tw"><table><thead id="th"></thead><tbody id="tb"></tbody></table></div>
+</div>
+<div class="dlg" id="dlg"><div class="box" id="box"></div></div>
+<script>
+const D=__DATA__;let role="bat",cat="All",sk="rank",sd=1;const $=i=>document.getElementById(i);
+const f1=x=>x==null||!isFinite(x)?"–":x.toFixed(1),f0=x=>x==null?"–":String(x),f2=x=>x==null||!isFinite(x)?"–":x.toFixed(2);
+const ov=b=>Math.floor(b/6)+"."+(b%6);
+const bs=a=>({b:a[0],runs:a[1],sr:a[0]?a[1]/a[0]*100:null,avg:a[2]?a[1]/a[2]:null,f4:a[3],f6:a[4],bd:a[0]?(a[3]+a[4])/a[0]*100:null,dot:a[0]?a[5]/a[0]*100:null,bdr:a[5]?(a[3]+a[4])/a[5]:null,inns:a[6]});
+const ws=a=>({b:a[0],ov:a[0],w:a[2],econ:a[0]?a[1]/a[0]*6:null,avg:a[2]?a[1]/a[2]:null,sr:a[2]?a[0]/a[2]:null,dot:a[0]?a[5]/a[0]*100:null,f4:a[3],f6:a[4],ex:a[6]});
+const calc=role=>role==="bat"?bs:ws;
+D.bat.forEach(p=>{p.A=bs(p.a);p.P=bs(p.p)});D.bowl.forEach(p=>{p.A=ws(p.a);p.P=ws(p.p)});
+const COLS={bat:[["Inns","A.inns",f0],["Runs","A.runs",f0],["SR","A.sr",f1],["Avg","A.avg",f1],["Balls","P.b",f0],["SR","P.sr",f1],["Avg","P.avg",f1],["4s","P.f4",f0],["6s","P.f6",f0],["Boundary %","P.bd",f1],["Dot %","P.dot",f1],["Bdry : dot","P.bdr",f2]],
+bowl:[["Overs","A.ov",ov],["Wkts","A.w",f0],["Econ","A.econ",f2],["Avg","A.avg",f1],["SR","A.sr",f1],["Dot %","A.dot",f1],["Overs","P.ov",ov],["Wkts","P.w",f0],["Econ","P.econ",f2],["Avg","P.avg",f1],["SR","P.sr",f1],["Dot %","P.dot",f1],["4s conceded","P.f4",f0],["6s conceded","P.f6",f0],["Extras","P.ex",f0]]};
+const get=(p,k)=>{const[a,b]=k.split(".");return p[a][b]};
+const pb=p=>p.P.b;
+function rows(){const cats=D[role];const q=$("q").value.toLowerCase(),n=$("nat").value,pool=$("pool").value,mp=+$("minp").value||0;
+return cats.filter(p=>(cat==="All"||p.cat===cat)&&(n==="All"||p.nat===n)&&(pool==="all"||p.ipl==="available")&&pb(p)>=mp&&p.n.toLowerCase().includes(q))}
+function render(){let r=rows();const ranked=r.filter(p=>p.sc!=null).sort((a,b)=>b.sc-a.sc);ranked.forEach((p,i)=>p.rank=i+1);r.filter(p=>p.sc==null).forEach(p=>p.rank=null);
+const cols=COLS[role],idx=cols.findIndex((c,i)=>sk==="c"+i);
+r.sort((a,b)=>{let x,y;if(sk==="rank"){x=a.rank??1e9;y=b.rank??1e9}else if(sk==="n"){return sd*a.n.localeCompare(b.n)}else{const k=cols[+sk.slice(1)][1];x=get(a,k);y=get(b,k);x=x==null?-1e9*sd:x;y=y==null?-1e9*sd:y}return sd*(x-y)});
+const g=role==="bat"?[["Overall",2],["Under pressure",8]]:[["Overall",6],["Under pressure",9]];
+$("th").innerHTML="<tr><th class='n g'></th><th class='g l' colspan='3'></th>"+g.map(x=>"<th class='g' colspan='"+x[1]+"'>"+x[0]+"</th>").join("")+"<th class='g'></th></tr><tr><th class='n' data-k='n'>Player</th><th class='l' data-k='x'>Nation</th><th class='l' data-k='x'>Category</th><th class='l' data-k='x'>IPL team</th>"+cols.map((c,i)=>"<th data-k='c"+i+"'>"+c[0]+"</th>").join("")+"<th data-k='rank'>Rank</th></tr>";
+$("tb").innerHTML=r.map(p=>"<tr data-i='"+p.id+"'><td class='n'>"+esc(p.n)+"</td><td class='l'>"+esc(p.nat)+"</td><td class='l'>"+p.cat+"</td><td class='l sm'>"+(p.ipl==="available"?"Available":esc(cap(p.ipl)))+"</td>"+cols.map(c=>"<td>"+c[2](get(p,c[1]))+"</td>").join("")+"<td>"+(p.rank??"–")+"</td></tr>").join("");
+$("cnt").textContent=r.length+" "+(role==="bat"?"batters":"bowlers")+" shown";
+document.querySelectorAll("#th th[data-k]").forEach(t=>t.onclick=()=>{const k=t.dataset.k;if(k==="x")return;if(sk===k)sd=-sd;else{sk=k;sd=k==="n"||k==="rank"?1:-1}render()});
+document.querySelectorAll("#tb tr").forEach(t=>t.onclick=()=>detail(+t.dataset.i))}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])),cap=s=>s.replace(/\b\w/g,c=>c.toUpperCase());
+function tbl(h,rs){return"<table><thead><tr>"+h.map((x,i)=>"<th class='"+(i?"":"l")+"'>"+x+"</th>").join("")+"</tr></thead><tbody>"+rs.map(r=>"<tr>"+r.map((x,i)=>"<td class='"+(i?"":"l")+"'>"+x+"</td>").join("")+"</tr>").join("")+"</tbody></table>"}
+function detail(id){const p=D[role].find(x=>x.id===id),f=calc(role),B=role==="bat";
+const line=(a,l)=>{const s=f(a);return B?[l,f0(s.inns),f0(s.runs),f1(s.sr),f1(s.avg),f1(s.bd),f1(s.dot),s.f4+" / "+s.f6]:[l,ov(s.b),f0(s.w),f2(s.econ),f1(s.avg),f1(s.sr),f1(s.dot),s.f4+" / "+s.f6]};
+const H=B?["","Inns","Runs","SR","Avg","Boundary %","Dot %","4s / 6s"]:["","Overs","Wkts","Econ","Avg","SR","Dot %","4s / 6s conceded"];
+const ph=["Powerplay (1–6)","Middle (7–15)","Death (16–20)"];
+$("box").innerHTML="<button class='x' onclick=\"$('dlg').classList.remove('show')\">×</button><h2>"+esc(p.n)+"</h2><div class='sub'>"+esc(p.nat)+" · "+p.cat+" · "+(p.ipl==="available"?"Available":esc(cap(p.ipl)))+"</div>"
++"<h3>All matches vs under pressure</h3>"+tbl(H,[line(p.a,"All balls"),line(p.p,"Under pressure")])
++"<h3>By phase (all balls)</h3>"+tbl(H,p.ph.map((a,i)=>line(a,ph[i])))
++"<h3>By year (all balls)</h3>"+tbl(H,Object.keys(p.sn).map(s=>line(p.sn[s],s)));$("dlg").classList.add("show")}
+$("dlg").onclick=e=>{if(e.target.id==="dlg")$("dlg").classList.remove("show")};
+function fill(){const n=[...new Set(D[role].map(p=>p.nat))].sort();$("nat").innerHTML="<option>All</option>"+n.map(x=>"<option>"+esc(x)+"</option>").join("")}
+$("cats").innerHTML=["All","Overseas","Indian capped","Indian uncapped"].map(c=>"<button data-c='"+c+"'"+(c==="All"?" class='on'":"")+">"+c+"</button>").join("");
+$("cats").onclick=e=>{if(!e.target.dataset.c)return;cat=e.target.dataset.c;[...$("cats").children].forEach(b=>b.classList.toggle("on",b===e.target));render()};
+$("role").onclick=e=>{if(!e.target.dataset.r)return;role=e.target.dataset.r;[...$("role").children].forEach(b=>b.classList.toggle("on",b===e.target));sk="rank";sd=1;fill();render()};
+["nat","pool","minp","q"].forEach(i=>$(i).oninput=render);
+$("sub").textContent="Status as of "+D.asof+" · source: "+D.file+" · "+D.bat.filter(p=>p.ipl==="available").length+" batters and "+D.bowl.filter(p=>p.ipl==="available").length+" bowlers currently without an IPL team";
+fill();render();
+</script>
+</body>
+</html>
